@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Calendario Festivos y Vacaciones – Mercados emisores (2026)</title>
+  <style>
+    :root{
+      --bg:#f9fafb;     /* gray-50 */
+      --ink:#111827;    /* gray-900 */
+      --muted:#6b7280;  /* gray-500 */
+      --line:#e5e7eb;   /* gray-200 */
+      --card:#ffffff;
+      --holiday:#f97316;    /* orange-500 */
+      --vac:#fde047;        /* yellow-300 */
+      --vac-border:#f59e0b; /* yellow-500 approx */
+      --radius:16px;    /* rounded-2xl */
+      --shadow:0 1px 2px rgba(0,0,0,.06);
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
+    .container{max-width:1280px;margin:0 auto;padding:24px 16px}
+    header{margin-bottom:24px}
+    h1{margin:0 0 4px;font-size:24px;line-height:1.2;font-weight:700}
+    .sub{margin:0;color:var(--muted);font-size:14px}
+    .layout{display:grid;grid-template-columns:1fr;gap:24px}
+    @media (min-width:1024px){ .layout{grid-template-columns:280px 1fr} }
+    .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+    .side{padding:16px;height:max-content}
+    .side h3{margin:0 0 8px;font-size:14px;font-weight:600;color:#374151}
+    .side label{font-size:12px;color:var(--muted)}
+    select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:12px;font-size:14px;background:#fff}
+    .checkrow{display:flex;align-items:center;gap:10px;margin:8px 0;color:#374151;font-size:14px}
+    .dot{width:12px;height:12px;border-radius:3px;display:inline-block}
+    .dot-h{background:var(--holiday)}
+    .dot-v{background:var(--vac);border:1px solid var(--vac-border)}
+    .note{font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:8px;margin-top:8px}
+    main.card{padding:16px}
+    .title{margin:0 0 12px;font-size:20px;font-weight:600}
+    .months{display:grid;grid-template-columns:1fr;gap:16px}
+    @media(min-width:640px){ .months{grid-template-columns:repeat(2,1fr)} }
+    @media(min-width:1280px){ .months{grid-template-columns:repeat(3,1fr)} }
+    .month{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+    .month h4{margin:0 0 8px;text-align:center;font-size:16px;font-weight:600;color:#1f2937}
+    .week{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;color:var(--muted);font-size:11px;margin-bottom:6px}
+    .week > div{height:24px;display:flex;align-items:center;justify-content:center}
+    .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;row-gap:6px}
+    .cell{position:relative;height:40px;display:flex;align-items:center;justify-content:center;color:#374151;font-size:13px}
+    @media(min-width:640px){ .cell{font-size:14px} }
+    .mark{position:absolute;z-index:0;width:28px;height:28px;border-radius:50%;opacity:.9}
+    .mark.h{background:var(--holiday)}
+    .mark.v{background:var(--vac);border:1px solid var(--vac-border)}
+    .mark.mix{background:radial-gradient(circle at 30% 30%, var(--vac) 0 45%, var(--holiday) 55% 100%);border:1px solid #fb923c}
+    .cell > span{position:relative;z-index:1;line-height:1}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Calendario de festivos y vacaciones de mercados emisores</h1>
+      <p class="sub">Año 2026</p>
+    </header>
+
+    <div class="layout">
+      <aside class="card side">
+        <div>
+          <h3>Localización</h3>
+          <label>País</label>
+          <div class="mt-1"><select id="country"></select></div>
+        </div>
+
+        <div style="margin-top:14px">
+          <h3>Tipo de Festividad</h3>
+          <label class="checkrow"><input type="checkbox" id="showH" checked><span><span class="dot dot-h"></span> Festivo</span></label>
+          <label class="checkrow"><input type="checkbox" id="showV" checked><span><span class="dot dot-v"></span> Vacaciones escolares</span></label>
+        </div>
+
+        <div style="margin-top:8px">
+          <h3>Leyenda</h3>
+          <div class="checkrow"><span class="dot dot-h"></span> Festivo</div>
+          <div class="checkrow"><span class="dot dot-v"></span> Vacaciones escolares</div>
+        </div>
+
+        <div class="note">* Algunas fechas son regionales (se indica en la etiqueta del día).</div>
+      </aside>
+
+      <main class="card">
+        <h2 class="title" id="title"></h2>
+        <div id="months" class="months"></div>
+      </main>
+    </div>
+  </div>
+
+<script>
+const YEAR = 2026;
+const toISO = (d) => d.toISOString().slice(0,10);
+const dateUTC = (y,m,d)=> new Date(Date.UTC(y,m-1,d));
+const d = (y,m,day)=> toISO(dateUTC(y,m,day));
+const r = (y,m1,d1,m2,d2)=> [toISO(dateUTC(y,m1,d1)), toISO(dateUTC(y,m2,d2))];
+const expandRange = (start,end)=>{
+  const out=[]; let cur=new Date(start), last=new Date(end);
+  while(cur<=last){ out.push(toISO(cur)); cur.setUTCDate(cur.getUTCDate()+1); }
+  return out;
+};
+
+// === DATOS (idénticos a la última versión del canvas) ===
+const DATA = {
+  "España": {
+    vacations: [
+      { range: r(YEAR, 1, 1, 1, 7), label: "Navidad (vacaciones escolares)" },
+      { range: r(YEAR, 3, 27, 4, 6), label: "Semana Santa (vacaciones escolares)" },
+      { range: r(YEAR, 6, 20, 9, 7), label: "Verano (vacaciones escolares)" },
+      { range: r(YEAR, 12, 21, 12, 31), label: "Navidad (vacaciones escolares)" }
+    ],
+    holidays: [
+      { date: d(YEAR, 1, 1), label: "Año Nuevo" },
+      { date: d(YEAR, 1, 6), label: "Reyes Magos" },
+      { date: d(YEAR, 3, 19), label: "San José (según CCAA)" },
+      { date: d(YEAR, 4, 2), label: "Jueves Santo (según CCAA)" },
+      { date: d(YEAR, 4, 3), label: "Viernes Santo" },
+      { date: d(YEAR, 4, 6), label: "Lunes de Pascua (según CCAA)" },
+      { date: d(YEAR, 5, 1), label: "Día del Trabajador" },
+      { date: d(YEAR, 6, 24), label: "San Juan (C. Valenciana)" },
+      { date: d(YEAR, 7, 25), label: "Santiago Apóstol (algunas CCAA)" },
+      { date: d(YEAR, 10, 9), label: "Día de la Comunidad Valenciana" },
+      { date: d(YEAR, 10, 12), label: "Fiesta Nacional" },
+      { date: d(YEAR, 11, 1), label: "Todos los Santos" },
+      { date: d(YEAR, 12, 6), label: "Día de la Constitución" },
+      { date: d(YEAR, 12, 8), label: "Inmaculada Concepción" },
+      { date: d(YEAR, 12, 25), label: "Navidad" },
+      { date: d(YEAR, 12, 26), label: "San Esteban (CAT, CVAL, IB)" }
+    ]
+  },
+  "Portugal": {
+    vacations: [
+      { range: r(YEAR, 1, 1, 1, 4), label: "Vacaciones escolares" },
+      { range: r(YEAR, 2, 16, 2, 18), label: "Invierno (vacaciones escolares)" },
+      { range: r(YEAR, 3, 28, 4, 12), label: "Pascua (vacaciones escolares)" },
+      { range: r(YEAR, 6, 13, 9, 10), label: "Verano (vacaciones escolares)" },
+      { range: r(YEAR, 12, 16, 12, 31), label: "Navidad (vacaciones escolares)" }
+    ],
+    holidays: [
+      { date: d(YEAR, 1, 1), label: "Año Nuevo" },
+      { date: d(YEAR, 4, 3), label: "Viernes Santo" },
+      { date: d(YEAR, 4, 5), label: "Domingo de Pascua" },
+      { date: d(YEAR, 4, 25), label: "Día de la Libertad" },
+      { date: d(YEAR, 5, 1), label: "Día del Trabajador" },
+      { date: d(YEAR, 6, 4), label: "Corpus Christi" },
+      { date: d(YEAR, 6, 10), label: "Día Nacional" },
+      { date: d(YEAR, 8, 15), label: "Asunción" },
+      { date: d(YEAR, 10, 5), label: "Proclamación de la República" },
+      { date: d(YEAR, 11, 1), label: "Todos los Santos" },
+      { date: d(YEAR, 12, 1), label: "Restauración de la Independencia" },
+      { date: d(YEAR, 12, 8), label: "Inmaculada Concepción" },
+      { date: d(YEAR, 12, 25), label: "Navidad" }
+    ]
+  },
+  "Francia": {
+    vacations: [
+      { range: r(YEAR, 1, 1, 1, 5), label: "Navidad (vacaciones escolares)" },
+      { range: r(YEAR, 2, 21, 3, 9), label: "Invierno (vacaciones escolares)" },
+      { range: r(YEAR, 4, 18, 5, 4), label: "Primavera (vacaciones escolares)" },
+      { range: r(YEAR, 7, 4, 8, 31), label: "Verano (vacaciones escolares)" },
+      { range: r(YEAR, 10, 17, 11, 1), label: "Otoño (vacaciones escolares)" },
+      { range: r(YEAR, 12, 21, 12, 31), label: "Navidad (vacaciones escolares)" }
+    ],
+    holidays: [
+      { date: d(YEAR, 1, 1), label: "Año Nuevo" },
+      { date: d(YEAR, 4, 6), label: "Lunes de Pascua" },
+      { date: d(YEAR, 5, 8), label: "Victoria 1945" },
+      { date: d(YEAR, 7, 14), label: "Fiesta Nacional" },
+      { date: d(YEAR, 8, 15), label: "Asunción" },
+      { date: d(YEAR, 11, 1), label: "Todos los Santos" },
+      { date: d(YEAR, 11, 11), label: "Armisticio 1918" },
+      { date: d(YEAR, 12, 25), label: "Navidad" }
+    ]
+  },
+  "Italia": {
+    vacations: [
+      { range: r(YEAR, 1, 1, 1, 7), label: "Navidad (vacaciones escolares)" },
+      { range: r(YEAR, 2, 16, 2, 18), label: "Invierno (vacaciones escolares)" },
+      { range: r(YEAR, 4, 2, 4, 8), label: "Pascua (vacaciones escolares)" },
+      { range: r(YEAR, 6, 1, 6, 2), label: "Puente (vacaciones escolares)" },
+      { range: r(YEAR, 6, 11, 9, 6), label: "Verano (vacaciones escolares)" },
+      { range: r(YEAR, 12, 7, 12, 8), label: "Puente Inmaculada (vacaciones escolares)" },
+      { range: r(YEAR, 12, 22, 12, 31), label: "Navidad (vacaciones escolares)" }
+    ],
+    holidays: [
+      { date: d(YEAR, 1, 1), label: "Año Nuevo" },
+      { date: d(YEAR, 1, 6), label: "Epifanía" },
+      { date: d(YEAR, 4, 5), label: "Domingo de Pascua" },
+      { date: d(YEAR, 4, 6), label: "Lunes de Pascua" },
+      { date: d(YEAR, 4, 25), label: "Día de la Liberación" },
+      { date: d(YEAR, 5, 1), label: "Día del Trabajador" },
+      { date: d(YEAR, 6, 2), label: "Fiesta de la República" },
+      { date: d(YEAR, 8, 15), label: "Ferragosto (Asunción)" },
+      { date: d(YEAR, 8, 16), label: "Festa del Comerç" },
+      { date: d(YEAR, 11, 1), label: "Todos los Santos" },
+      { date: d(YEAR, 12, 8), label: "Inmaculada Concepción" },
+      { date: d(YEAR, 12, 25), label: "Navidad" },
+      { date: d(YEAR, 12, 26), label: "San Esteban" }
+    ]
+  },
+  "Alemania": {
+    vacations: [
+      { range: r(YEAR, 1, 1, 1, 11), label: "Vacaciones escolares" },
+      { range: r(YEAR, 3, 30, 4, 10), label: "Pascua (vacaciones escolares)" },
+      { range: r(YEAR, 6, 29, 8, 7), label: "Verano (vacaciones escolares)" },
+      { range: r(YEAR, 10, 5, 10, 17), label: "Otoño (vacaciones escolares)" },
+      { range: r(YEAR, 12, 23, 12, 31), label: "Navidad (vacaciones escolares)" }
+    ],
+    holidays: [
+      { date: d(YEAR, 1, 1), label: "Año Nuevo" },
+      { date: d(YEAR, 1, 6), label: "Epifanía (BY, BW, ST)" },
+      { date: d(YEAR, 4, 3), label: "Viernes Santo" },
+      { date: d(YEAR, 4, 6), label: "Lunes de Pascua" },
+      { date: d(YEAR, 5, 1), label: "Día del Trabajador" },
+      { date: d(YEAR, 6, 4), label: "Corpus Christi (estados católicos)" },
+      { date: d(YEAR, 8, 15), label: "Asunción (BY, SL)" },
+      { date: d(YEAR, 10, 3), label: "Día de la Unidad Alemana" },
+      { date: d(YEAR, 10, 31), label: "Día de la Reforma (Länder protestantes)" },
+      { date: d(YEAR, 11, 1), label: "Todos los Santos (BY, BW, NW…)" },
+      { date: d(YEAR, 11, 18), label: "Día de Penitencia y Oración (SN)" },
+      { date: d(YEAR, 12, 25), label: "Navidad" },
+      { date: d(YEAR, 12, 26), label: "San Esteban" }
+    ]
+  },
+  "Bélgica": {
+    vacations: [
+      { range: r(YEAR, 1, 1, 1, 4), label: "Navidad (vacaciones escolares)" },
+      { range: r(YEAR, 2, 16, 2, 27), label: "Invierno (vacaciones escolares)" },
+      { range: r(YEAR, 4, 6, 4, 17), label: "Pascua (vacaciones escolares)" },
+      { range: r(YEAR, 4, 27, 5, 8), label: "Primavera (vacaciones escolares)" },
+      { range: r(YEAR, 7, 1, 8, 31), label: "Verano (vacaciones escolares)" },
+      { range: r(YEAR, 10, 26, 11, 6), label: "Otoño (vacaciones escolares)" },
+      { range: r(YEAR, 12, 21, 12, 31), label: "Navidad (vacaciones escolares)" }
+    ],
+    holidays: [
+      { date: d(YEAR, 4, 6), label: "Lunes de Pascua" },
+      { date: d(YEAR, 5, 1), label: "Fiesta del Trabajo" },
+      { date: d(YEAR, 7, 21), label: "Fiesta Nacional" },
+      { date: d(YEAR, 8, 15), label: "Asunción" },
+      { date: d(YEAR, 11, 1), label: "Todos los Santos" },
+      { date: d(YEAR, 11, 11), label: "Armisticio" },
+      { date: d(YEAR, 12, 25), label: "Navidad" }
+    ]
+  },
+  "Países Bajos": {
+    vacations: [
+      { range: r(YEAR, 1, 1, 1, 4), label: "Vacaciones escolares" },
+      { range: r(YEAR, 2, 16, 2, 27), label: "Invierno (vacaciones escolares)" },
+      { range: r(YEAR, 4, 27, 5, 1), label: "Primavera (vacaciones escolares)" },
+      { range: r(YEAR, 7, 6, 8, 28), label: "Verano (vacaciones escolares)" },
+      { range: r(YEAR, 10, 12, 10, 23), label: "Otoño (vacaciones escolares)" },
+      { range: r(YEAR, 12, 21, 12, 31), label: "Navidad (vacaciones escolares)" }
+    ],
+    holidays: [
+      { date: d(YEAR, 4, 3), label: "Viernes Santo" },
+      { date: d(YEAR, 4, 6), label: "Lunes de Pascua" },
+      { date: d(YEAR, 4, 27), label: "Día del Rey" },
+      { date: d(YEAR, 5, 14), label: "Ascensión" },
+      { date: d(YEAR, 5, 25), label: "Lunes de Pentecostés" }
+    ]
+  },
+  "Austria": {
+    vacations: [
+      { range: r(YEAR, 1, 1, 1, 6), label: "Navidad (vacaciones escolares)" }
+    ],
+    holidays: [
+      { date: d(YEAR, 1, 1), label: "Año Nuevo" },
+      { date: d(YEAR, 1, 6), label: "Epifanía" },
+      { date: d(YEAR, 3, 19), label: "San José (algunos Länder)" },
+      { date: d(YEAR, 4, 3), label: "Viernes Santo" },
+      { date: d(YEAR, 4, 6), label: "Lunes de Pascua" },
+      { date: d(YEAR, 5, 1), label: "Fiesta del Trabajo" },
+      { date: d(YEAR, 5, 14), label: "Ascensión" },
+      { date: d(YEAR, 5, 25), label: "Lunes de Pentecostés" },
+      { date: d(YEAR, 6, 4), label: "Corpus Christi" },
+      { date: d(YEAR, 10, 26), label: "Fiesta Nacional" },
+      { date: d(YEAR, 11, 1), label: "Todos los Santos" },
+      { date: d(YEAR, 12, 8), label: "Inmaculada" },
+      { date: d(YEAR, 12, 25), label: "Navidad" },
+      { date: d(YEAR, 12, 26), label: "San Esteban" }
+    ]
+  },
+  "Suiza": {
+    vacations: [
+      { range: r(YEAR, 1, 1, 1, 5), label: "Vacaciones escolares" },
+      { range: r(YEAR, 4, 2, 4, 6), label: "Pascua (vacaciones escolares)" },
+      { range: r(YEAR, 4, 20, 5, 1), label: "Primavera (vacaciones escolares)" },
+      { range: r(YEAR, 10, 5, 10, 18), label: "Otoño (vacaciones escolares)" },
+      { range: r(YEAR, 12, 21, 12, 31), label: "Navidad (vacaciones escolares)" }
+    ],
+    holidays: [
+      { date: d(YEAR, 1, 1), label: "Año Nuevo" },
+      { date: d(YEAR, 1, 2), label: "Berchtoldstag" },
+      { date: d(YEAR, 1, 6), label: "Reyes (algunos cantones)" },
+      { date: d(YEAR, 4, 3), label: "Viernes Santo" },
+      { date: d(YEAR, 4, 6), label: "Lunes de Pascua" },
+      { date: d(YEAR, 5, 1), label: "Día del Trabajo" },
+      { date: d(YEAR, 5, 14), label: "Ascensión" },
+      { date: d(YEAR, 5, 25), label: "Lunes de Pentecostés" },
+      { date: d(YEAR, 6, 4), label: "Corpus Christi (cantones católicos)" },
+      { date: d(YEAR, 8, 1), label: "Fiesta Nacional" },
+      { date: d(YEAR, 8, 15), label: "Asunción (cantones católicos)" },
+      { date: d(YEAR, 11, 1), label: "Todos los Santos" },
+      { date: d(YEAR, 12, 8), label: "Inmaculada (cantones católicos)" },
+      { date: d(YEAR, 12, 25), label: "Navidad" },
+      { date: d(YEAR, 12, 26), label: "San Esteban" }
+    ]
+  },
+  "Reino Unido": {
+    vacations: [
+      { range: r(YEAR, 1, 1, 1, 2), label: "Navidad (continuación)" },
+      { range: r(YEAR, 3, 30, 4, 10), label: "Pascua (vacaciones escolares)" },
+      { range: r(YEAR, 5, 25, 5, 29), label: "Vacaciones escolares" },
+      { range: r(YEAR, 7, 22, 8, 31), label: "Verano (vacaciones escolares)" },
+      { range: r(YEAR, 10, 26, 11, 1), label: "Otoño (vacaciones escolares)" },
+      { range: r(YEAR, 12, 21, 12, 31), label: "Navidad (vacaciones escolares)" }
+    ],
+    holidays: [
+      { date: d(YEAR, 1, 1), label: "Año Nuevo" },
+      { date: d(YEAR, 4, 6), label: "Lunes de Pascua (ENG, WAL, NI)" },
+      { date: d(YEAR, 5, 4), label: "Early May Bank Holiday" },
+      { date: d(YEAR, 5, 25), label: "Spring Bank Holiday" },
+      { date: d(YEAR, 7, 13), label: "Batalla del Boyne (NI)" },
+      { date: d(YEAR, 8, 3), label: "Summer Bank Holiday (SCT)" },
+      { date: d(YEAR, 8, 31), label: "Summer Bank Holiday (ENG, WAL, NI)" },
+      { date: d(YEAR, 11, 30), label: "San Andrés (SCT)" },
+      { date: d(YEAR, 12, 25), label: "Navidad" },
+      { date: d(YEAR, 12, 28), label: "Boxing Day (sustitución)" }
+    ]
+  },
+  "Irlanda": {
+    vacations: [
+      { range: r(YEAR, 1, 1, 1, 4), label: "Navidad (continuación)" },
+      { range: r(YEAR, 2, 19, 2, 22), label: "Invierno (vacaciones escolares)" },
+      { range: r(YEAR, 3, 27, 4, 12), label: "Pascua (vacaciones escolares)" },
+      { range: r(YEAR, 7, 1, 8, 31), label: "Verano (vacaciones escolares)" },
+      { range: r(YEAR, 10, 26, 11, 1), label: "Otoño (vacaciones escolares)" },
+      { range: r(YEAR, 12, 18, 12, 31), label: "Navidad (vacaciones escolares)" }
+    ],
+    holidays: [
+      { date: d(YEAR, 1, 1), label: "Año Nuevo" },
+      { date: d(YEAR, 2, 2), label: "Santa Brígida" },
+      { date: d(YEAR, 3, 17), label: "San Patricio" },
+      { date: d(YEAR, 4, 6), label: "Lunes de Pascua" },
+      { date: d(YEAR, 5, 4), label: "Early May Bank Holiday" },
+      { date: d(YEAR, 6, 1), label: "June Bank Holiday" },
+      { date: d(YEAR, 8, 3), label: "Summer Bank Holiday" },
+      { date: d(YEAR, 10, 26), label: "October Bank Holiday" },
+      { date: d(YEAR, 12, 25), label: "Navidad" },
+      { date: d(YEAR, 12, 26), label: "San Esteban" }
+    ]
+  },
+  "Polonia": {
+    vacations: [
+      { range: r(YEAR, 1, 1, 1, 6), label: "Navidad (continuación)" },
+      { range: r(YEAR, 2, 16, 2, 20), label: "Invierno (vacaciones escolares)" },
+      { range: r(YEAR, 4, 2, 4, 6), label: "Pascua (vacaciones escolares)" },
+      { range: r(YEAR, 6, 29, 8, 31), label: "Verano (vacaciones escolares)" },
+      { range: r(YEAR, 12, 23, 12, 31), label: "Navidad (vacaciones escolares)" }
+    ],
+    holidays: [
+      { date: d(YEAR, 1, 1), label: "Año Nuevo" },
+      { date: d(YEAR, 1, 6), label: "Epifanía" },
+      { range: r(YEAR, 4, 3, 4, 6), label: "Pascua (de Viernes a Lunes)" },
+      { date: d(YEAR, 5, 1), label: "Fiesta del Trabajo" },
+      { date: d(YEAR, 5, 3), label: "Día de la Constitución" },
+      { date: d(YEAR, 5, 24), label: "Pentecostés" },
+      { date: d(YEAR, 6, 4), label: "Corpus Christi" },
+      { date: d(YEAR, 8, 15), label: "Asunción" },
+      { date: d(YEAR, 11, 1), label: "Todos los Santos" },
+      { date: d(YEAR, 11, 11), label: "Independencia" },
+      { date: d(YEAR, 12, 25), label: "Navidad" },
+      { date: d(YEAR, 12, 26), label: "San Esteban" }
+    ]
+  },
+  "República Checa": {
+    vacations: [
+      { range: r(YEAR, 1, 1, 1, 2), label: "Invierno (vacaciones escolares)" },
+      { range: r(YEAR, 1, 30, 1, 30), label: "Vacaciones de semestre" },
+      { range: r(YEAR, 7, 1, 8, 31), label: "Verano (vacaciones escolares)" },
+      { range: r(YEAR, 10, 28, 10, 30), label: "Otoño (vacaciones escolares)" },
+      { range: r(YEAR, 12, 23, 12, 31), label: "Navidad (vacaciones escolares)" }
+    ],
+    holidays: [
+      { date: d(YEAR, 1, 1), label: "Restauración de Checoslovaquia" },
+      { range: r(YEAR, 4, 3, 4, 6), label: "Pascua" },
+      { date: d(YEAR, 5, 1), label: "Fiesta del Trabajo" },
+      { date: d(YEAR, 5, 8), label: "Día de la Victoria" },
+      { date: d(YEAR, 7, 5), label: "Cirilo y Metodio" },
+      { date: d(YEAR, 7, 6), label: "Jan Hus" },
+      { date: d(YEAR, 9, 28), label: "San Wenceslao" },
+      { date: d(YEAR, 10, 28), label: "Fundación del Estado Checoslovaco" },
+      { date: d(YEAR, 11, 17), label: "Libertad y Democracia" },
+      { range: r(YEAR, 12, 24, 12, 26), label: "Navidad" }
+    ]
+  },
+  "Eslovaquia": {
+    vacations: [
+      { range: r(YEAR, 1, 1, 1, 7), label: "Navidad (vacaciones escolares)" },
+      { range: r(YEAR, 4, 2, 4, 6), label: "Pascua (vacaciones escolares)" },
+      { range: r(YEAR, 7, 1, 8, 31), label: "Verano (vacaciones escolares)" },
+      { range: r(YEAR, 12, 21, 12, 31), label: "Navidad (vacaciones escolares)" }
+    ],
+    holidays: [
+      { date: d(YEAR, 1, 1), label: "Año Nuevo" },
+      { date: d(YEAR, 1, 6), label: "Epifanía" },
+      { range: r(YEAR, 4, 3, 4, 6), label: "Pascua" },
+      { date: d(YEAR, 5, 1), label: "Fiesta del Trabajo" },
+      { date: d(YEAR, 5, 8), label: "Día de la Victoria" },
+      { date: d(YEAR, 7, 5), label: "Cirilo y Metodio" },
+      { date: d(YEAR, 8, 29), label: "Insurrección Nacional Eslovaca" },
+      { date: d(YEAR, 9, 1), label: "Constitución" },
+      { date: d(YEAR, 9, 15), label: "Dolores de la Virgen" },
+      { date: d(YEAR, 11, 1), label: "Todos los Santos" },
+      { date: d(YEAR, 11, 17), label: "Libertad y Democracia" },
+      { range: r(YEAR, 12, 24, 12, 26), label: "Navidad" }
+    ]
+  },
+  "Hungría": {
+    vacations: [
+      { range: r(YEAR, 1, 1, 1, 5), label: "Navidad (vacaciones escolares)" },
+      { range: r(YEAR, 4, 9, 4, 14), label: "Primavera (vacaciones escolares)" },
+      { range: r(YEAR, 6, 15, 8, 31), label: "Verano (vacaciones escolares)" },
+      { range: r(YEAR, 12, 23, 12, 31), label: "Navidad (vacaciones escolares)" }
+    ],
+    holidays: [
+      { date: d(YEAR, 1, 1), label: "Año Nuevo" },
+      { date: d(YEAR, 3, 15), label: "Revolución de 1848" },
+      { range: r(YEAR, 4, 3, 4, 6), label: "Pascua" },
+      { date: d(YEAR, 5, 1), label: "Fiesta del Trabajo" },
+      { date: d(YEAR, 8, 20), label: "Día de San Esteban" },
+      { date: d(YEAR, 10, 23), label: "Revolución de 1956" },
+      { date: d(YEAR, 11, 1), label: "Todos los Santos" },
+      { range: r(YEAR, 12, 25, 12, 26), label: "Navidad" }
+    ]
+  },
+  "Suecia": {
+    vacations: [
+      { range: r(YEAR, 1, 1, 1, 6), label: "Navidad (vacaciones escolares)" },
+      { range: r(YEAR, 2, 23, 3, 1), label: "Invierno (vacaciones escolares)" },
+      { range: r(YEAR, 4, 2, 4, 12), label: "Pascua (vacaciones escolares)" },
+      { range: r(YEAR, 6, 12, 8, 16), label: "Verano (vacaciones escolares)" },
+      { range: r(YEAR, 10, 26, 11, 1), label: "Otoño (vacaciones escolares)" },
+      { range: r(YEAR, 12, 19, 12, 31), label: "Navidad (vacaciones escolares)" }
+    ],
+    holidays: [
+      { date: d(YEAR, 1, 1), label: "Año Nuevo" },
+      { date: d(YEAR, 1, 6), label: "Epifanía" },
+      { range: r(YEAR, 4, 3, 4, 6), label: "Pascua" },
+      { date: d(YEAR, 5, 1), label: "Fiesta del Trabajo" },
+      { date: d(YEAR, 6, 6), label: "Día Nacional" },
+      { date: d(YEAR, 6, 20), label: "Midsommar" },
+      { date: d(YEAR, 11, 1), label: "Todos los Santos" },
+      { date: d(YEAR, 12, 25), label: "Navidad" },
+      { date: d(YEAR, 12, 26), label: "San Esteban" }
+    ]
+  },
+  "Finlandia": {
+    vacations: [
+      { range: r(YEAR, 1, 1, 1, 6), label: "Navidad (vacaciones escolares)" },
+      { range: r(YEAR, 2, 16, 2, 20), label: "Invierno (vacaciones escolares)" },
+      { range: r(YEAR, 4, 2, 4, 6), label: "Pascua (vacaciones escolares)" },
+      { range: r(YEAR, 6, 1, 7, 31), label: "Verano (vacaciones escolares)" },
+      { range: r(YEAR, 5, 31, 8, 10), label: "Verano (otras zonas)" },
+      { range: r(YEAR, 12, 21, 12, 31), label: "Navidad (vacaciones escolares)" }
+    ],
+    holidays: [
+      { date: d(YEAR, 1, 1), label: "Año Nuevo" },
+      { date: d(YEAR, 1, 6), label: "Epifanía" },
+      { range: r(YEAR, 4, 3, 4, 6), label: "Pascua" },
+      { date: d(YEAR, 5, 1), label: "Vappu (Día del Trabajo)" },
+      { date: d(YEAR, 6, 20), label: "Midsommar" },
+      { date: d(YEAR, 12, 6), label: "Día de la Independencia" },
+      { date: d(YEAR, 12, 25), label: "Navidad" },
+      { date: d(YEAR, 12, 26), label: "San Esteban" }
+    ]
+  },
+  "Dinamarca": {
+    vacations: [
+      { range: r(YEAR, 1, 1, 1, 2), label: "Navidad (vacaciones escolares)" },
+      { range: r(YEAR, 2, 16, 2, 22), label: "Invierno (vacaciones escolares)" },
+      { range: r(YEAR, 3, 30, 4, 6), label: "Pascua (vacaciones escolares)" },
+      { range: r(YEAR, 6, 29, 8, 10), label: "Verano (vacaciones escolares)" },
+      { range: r(YEAR, 10, 12, 10, 18), label: "Otoño (vacaciones escolares)" },
+      { range: r(YEAR, 12, 21, 12, 31), label: "Navidad (vacaciones escolares)" }
+    ],
+    holidays: [
+      { date: d(YEAR, 1, 1), label: "Año Nuevo" },
+      { range: r(YEAR, 4, 3, 4, 6), label: "Pascua" },
+      { date: d(YEAR, 5, 8), label: "Día de la Liberación" },
+      { date: d(YEAR, 5, 14), label: "Ascensión" },
+      { range: r(YEAR, 5, 24, 5, 25), label: "Pentecostés" },
+      { date: d(YEAR, 6, 5), label: "Día de la Constitución" },
+      { date: d(YEAR, 12, 25), label: "Navidad" },
+      { date: d(YEAR, 12, 26), label: "San Esteban" }
+    ]
+  },
+  "Noruega": {
+    vacations: [
+      { range: r(YEAR, 1, 1, 1, 4), label: "Navidad (vacaciones escolares)" },
+      { range: r(YEAR, 2, 16, 2, 22), label: "Invierno (vacaciones escolares)" },
+      { range: r(YEAR, 3, 30, 4, 6), label: "Pascua (vacaciones escolares)" },
+      { range: r(YEAR, 6, 20, 8, 16), label: "Verano (vacaciones escolares)" },
+      { range: r(YEAR, 12, 22, 12, 31), label: "Navidad (vacaciones escolares)" }
+    ],
+    holidays: [
+      { date: d(YEAR, 1, 1), label: "Año Nuevo" },
+      { range: r(YEAR, 4, 3, 4, 6), label: "Pascua" },
+      { date: d(YEAR, 5, 1), label: "Día del Trabajo" },
+      { date: d(YEAR, 5, 17), label: "Día Nacional" },
+      { date: d(YEAR, 5, 21), label: "Ascensión" },
+      { range: r(YEAR, 5, 31, 6, 1), label: "Pentecostés" },
+      { date: d(YEAR, 12, 25), label: "Navidad" },
+      { date: d(YEAR, 12, 26), label: "San Esteban" }
+    ]
+  },
+  "Islandia": {
+    vacations: [
+      { range: r(YEAR, 1, 1, 1, 4), label: "Navidad (vacaciones escolares)" },
+      { range: r(YEAR, 2, 23, 3, 1), label: "Invierno (vacaciones escolares)" },
+      { range: r(YEAR, 4, 3, 4, 6), label: "Pascua (vacaciones escolares)" },
+      { range: r(YEAR, 4, 13, 4, 19), label: "Primavera (vacaciones escolares)" },
+      { range: r(YEAR, 6, 17, 8, 31), label: "Verano (vacaciones escolares)" },
+      { range: r(YEAR, 10, 19, 10, 25), label: "Otoño (vacaciones escolares)" },
+      { range: r(YEAR, 12, 21, 12, 31), label: "Navidad (vacaciones escolares)" }
+    ],
+    holidays: [
+      { date: d(YEAR, 1, 1), label: "Año Nuevo" },
+      { date: d(YEAR, 1, 6), label: "Þrettándinn" },
+      { range: r(YEAR, 4, 3, 4, 6), label: "Pascua" },
+      { date: d(YEAR, 5, 1), label: "Día del Trabajo" },
+      { date: d(YEAR, 6, 17), label: "Día Nacional" },
+      { date: d(YEAR, 8, 1), label: "Verslunarmannahelgi" },
+      { date: d(YEAR, 12, 25), label: "Navidad" },
+      { date: d(YEAR, 12, 26), label: "San Esteban" }
+    ]
+  },
+  "Estonia": {
+    vacations: [
+      { range: r(YEAR, 1, 1, 1, 11), label: "Navidad (vacaciones escolares)" },
+      { range: r(YEAR, 2, 23, 3, 1), label: "Invierno (vacaciones escolares)" },
+      { range: r(YEAR, 4, 13, 4, 19), label: "Primavera (vacaciones escolares)" },
+      { range: r(YEAR, 6, 17, 8, 31), label: "Verano (vacaciones escolares)" },
+      { range: r(YEAR, 10, 19, 10, 25), label: "Otoño (vacaciones escolares)" },
+      { range: r(YEAR, 12, 21, 12, 31), label: "Navidad (vacaciones escolares)" }
+    ],
+    holidays: [
+      { date: d(YEAR, 1, 1), label: "Año Nuevo" },
+      { date: d(YEAR, 2, 24), label: "Día de la Independencia" },
+      { range: r(YEAR, 4, 3, 4, 6), label: "Pascua" },
+      { date: d(YEAR, 5, 1), label: "Día del Trabajo / Valborg" },
+      { date: d(YEAR, 5, 24), label: "Pentecostés" },
+      { date: d(YEAR, 8, 20), label: "Restauración de la Independencia" },
+      { date: d(YEAR, 12, 25), label: "Navidad" },
+      { date: d(YEAR, 12, 26), label: "San Esteban" }
+    ]
+  }
+};
+
+const COUNTRIES = Object.keys(DATA);
+const monthNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+const weekNames = ["L","M","X","J","V","S","D"];
+
+const els = {
+  country: document.getElementById('country'),
+  title: document.getElementById('title'),
+  months: document.getElementById('months'),
+  showH: document.getElementById('showH'),
+  showV: document.getElementById('showV')
+};
+
+COUNTRIES.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; els.country.appendChild(o); });
+els.country.value = COUNTRIES[0];
+
+function buildMonthMatrix(year, m0){
+  const first = new Date(Date.UTC(year,m0,1));
+  const firstWeekday = (first.getUTCDay()+6)%7; // L=0..D=6
+  const daysInMonth = new Date(Date.UTC(year,m0+1,0)).getUTCDate();
+  const cells = Array(42).fill(null);
+  let day=1; for(let i=firstWeekday;i<firstWeekday+daysInMonth;i++){ cells[i]=new Date(Date.UTC(year,m0,day++)); }
+  return cells;
+}
+
+function render(){
+  const country = els.country.value;
+  const cfg = DATA[country];
+  els.title.textContent = country + " – " + YEAR;
+  els.months.innerHTML = "";
+
+  const H = new Map(), V = new Map();
+
+  (cfg.holidays || []).forEach(h=>{
+    if(h.date){ const k=h.date; H.set(k,[...(H.get(k)||[]),h.label]); }
+    else if(h.range){ expandRange(h.range[0],h.range[1]).forEach(k=> H.set(k,[...(H.get(k)||[]),h.label])); }
+  });
+  (cfg.vacations || []).forEach(v=> expandRange(v.range[0],v.range[1]).forEach(k=> V.set(k,[...(V.get(k)||[]),v.label])));
+
+  for(let m0=0;m0<12;m0++){
+    const card=document.createElement('div'); card.className='month';
+    const h4=document.createElement('h4'); h4.textContent=monthNames[m0]; card.appendChild(h4);
+
+    const wk=document.createElement('div'); wk.className='week'; weekNames.forEach(w=>{ const s=document.createElement('div'); s.textContent=w; wk.appendChild(s); }); card.appendChild(wk);
+
+    const grid=document.createElement('div'); grid.className='grid';
+    buildMonthMatrix(YEAR,m0).forEach((dt)=>{
+      const cell=document.createElement('div'); cell.className='cell';
+      if(dt){
+        const iso=toISO(dt);
+        const num=document.createElement('span'); num.textContent=dt.getUTCDate(); cell.appendChild(num);
+        const isH=H.has(iso), isV=V.has(iso);
+        const showH=els.showH.checked && isH;
+        const showV=els.showV.checked && isV;
+        if(showH||showV){
+          const m=document.createElement('span'); m.className='mark ' + (showH&&showV ? 'mix' : showH ? 'h' : 'v');
+          cell.insertBefore(m, cell.firstChild);
+          cell.title=[...(H.get(iso)||[]), ...(V.get(iso)||[])].join(" • ");
+        }
+      }
+      grid.appendChild(cell);
+    });
+    card.appendChild(grid);
+    els.months.appendChild(card);
+  }
+}
+
+['change','input'].forEach(ev=> els.country.addEventListener(ev,render));
+['change','input','click'].forEach(ev=> { els.showH.addEventListener(ev,render); els.showV.addEventListener(ev,render); });
+
+render();
+</script>
+</body>
+</html>
